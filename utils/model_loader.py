@@ -53,47 +53,71 @@ def select_tokenizer_and_pretrained_model(repo_root: str, model_name: str, num_l
         model.resize_token_embeddings(len(tok))
         model.config.vocab_size = len(tok)
         return tok, model
+    # elif model_name == "lrp-distilbert":
+    #     from transformers import DistilBertConfig, DistilBertTokenizerFast
+    #     from transformers import DistilBertForSequenceClassification as HF_DistilCls
+    #     from utils.distilbert_lrp.bert_explainability.distilbert.DistilBertForSequenceClassification import (
+    #         DistilBertForSequenceClassification as LRPDistilCls,
+    #     )
+
+    #     tok = DistilBertTokenizerFast.from_pretrained("distilbert-base-cased")
+
+    #     cfg = DistilBertConfig.from_pretrained("distilbert-base-cased")
+    #     cfg.num_labels = num_labels
+    #     lrp = LRPDistilCls(cfg)
+
+    #     base_sd = HF_DistilCls.from_pretrained(
+    #         "distilbert-base-cased", num_labels=num_labels
+    #     ).state_dict()
+
+    #     missing, unexpected = lrp.load_state_dict(base_sd, strict=False)
+
+    #     # Only allow head differences. Everything else should match.
+    #     allowed_missing = ("classifier", "pre_classifier")
+    #     bad_missing = [k for k in missing if not k.startswith(allowed_missing)]
+    #     bad_unexpected = [k for k in unexpected if not k.startswith(allowed_missing)]
+    #     if bad_missing or bad_unexpected:
+    #         raise RuntimeError(
+    #             "LRP DistilBERT backbone mismatch.\n"
+    #             f"bad_missing[:10]={bad_missing[:10]}\n"
+    #             f"bad_unexpected[:10]={bad_unexpected[:10]}"
+    #         )
+
+    #     add_tokens_from_file(vocab_path, tok)
+    #     if use_normalised_tokens:
+    #         tok.add_special_tokens(SPECIAL_TOKENS)
+    #     lrp.resize_token_embeddings(len(tok))
+    #     lrp.config.vocab_size = len(tok)
+
+    #     #  Good hygiene
+    #     lrp.config.id2label = {i: c for i, c in enumerate(range(num_labels))}
+    #     lrp.config.label2id = {str(v): k for k, v in lrp.config.id2label.items()}
+    #     lrp.config.problem_type = "single_label_classification"
+
+    #     return tok, lrp
+
     elif model_name == "lrp-distilbert":
-        # custom LRP DistilBERT
-        from transformers import DistilBertConfig, DistilBertTokenizerFast, DistilBertForSequenceClassification as HF_DistilCls
-        from transformers import BertTokenizerFast, BertForSequenceClassification as HF_BertCls
-        from utils.distilbert_lrp.bert_explainability.distilbert.DistilBertForSequenceClassification import (
-            DistilBertForSequenceClassification as LRPDistilCls,
-        )
+        from transformers import DistilBertTokenizerFast
+        from utils.lrp_distilbert_hf import LRPDistilBertForSequenceClassification
 
-        # instantiate
-        cfg = DistilBertConfig.from_pretrained("distilbert-base-cased")
-        cfg.num_labels = num_labels
-        lrp = LRPDistilCls(cfg)
         tok = DistilBertTokenizerFast.from_pretrained("distilbert-base-cased")
-        base_sd = HF_DistilCls.from_pretrained("distilbert-base-cased", num_labels=num_labels).state_dict()
-
-        # Load encoder weights from the matching backbone
-        missing, unexpected = lrp.load_state_dict(base_sd, strict=False)
-
-        # Allow classifier/head diffs; everything else should mostly line up.
-        acceptable_missing_prefixes = ("classifier", "pre_classifier")
-        bad_missing = [k for k in missing if not k.startswith(acceptable_missing_prefixes)]
-        # Note: some custom-class keys may legitimately be "unexpected"; we don't block on them.
-
-        if bad_missing:
-            print("[WARN] Unexpected missing keys while loading pretrained into LRP:", bad_missing[:10], "…")
-        if unexpected:
-            print("[WARN] Unexpected extra keys while loading pretrained into LRP:", unexpected[:10], "…")
-
-        #  Add 5k vocab and resize embeddings (preserves pretrained rows)
         add_tokens_from_file(vocab_path, tok)
         if use_normalised_tokens:
             tok.add_special_tokens(SPECIAL_TOKENS)
-        lrp.resize_token_embeddings(len(tok))
-        lrp.config.vocab_size = len(tok)
 
-        #  Good hygiene
-        lrp.config.id2label = {i: c for i, c in enumerate(range(num_labels))}
-        lrp.config.label2id = {str(v): k for k, v in lrp.config.id2label.items()}
-        lrp.config.problem_type = "single_label_classification"
+        model = LRPDistilBertForSequenceClassification.from_pretrained(
+            "distilbert-base-cased",
+            num_labels=num_labels,
+        )
 
-        return tok, lrp
+        model.resize_token_embeddings(len(tok))
+        model.config.vocab_size = len(tok)
+
+        model.config.problem_type = "single_label_classification"
+        model.config.id2label = {i: str(i) for i in range(num_labels)}
+        model.config.label2id = {v: k for k, v in model.config.id2label.items()}
+
+        return tok, model
     
     elif model_name == "lrp-bert":
         # Minimal LRP-enabled BERT: initialise custom LRP head, load HF backbone weights, extend vocab, resize
@@ -275,15 +299,21 @@ def _lrp_bert_load(run_dir: Path, tok):
 
 
 def _lrp_distilbert_load(run_dir: Path, tok):
-    from utils.distilbert_lrp.bert_explainability.distilbert.DistilBertForSequenceClassification import (
-        DistilBertForSequenceClassification as LRPDistilCls
-    )
+    from transformers import DistilBertConfig
+    from transformers import DistilBertForSequenceClassification
+    from utils.lrp_distilbert_hf import LRPDistilBertForSequenceClassification
 
     hf_cfg = DistilBertConfig.from_pretrained(run_dir, local_files_only=True)
     hf_cfg.vocab_size = len(tok)
-    model = LRPDistilCls(hf_cfg)
+
+    cls = LRPDistilBertForSequenceClassification
+    model = cls(hf_cfg)
+
     state = _find_model_weights_strict(run_dir)
+    # If you saved via Trainer.save_model(), this might be pytorch_model.bin not safetensors.
+    # You are using model.safetensors, so keep strict file expectations as you do now.
     model.load_state_dict(state, strict=False)
+
     model.resize_token_embeddings(len(tok))
     return model
 
