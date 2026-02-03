@@ -15,7 +15,7 @@ export PYTHONNOUSERSITE=1
 export TOKENIZERS_PARALLELISM=false
 
 # Fixed parameters
-MODEL="distilbert"
+MODEL="lrp-distilbert"
 SEED=123
 DATA_FILE="small_cve_ids_3.1_header.csv"
 TEST_SIZE=0.20
