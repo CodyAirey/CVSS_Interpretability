@@ -181,7 +181,7 @@ def main():
             y_va = [y_tmp[i] for i in va_idx]
 
             # Fresh model + tokenizer per fold (standard CV practice)
-            tokenizer_fold, model_fold = select_tokenizer_and_pretrained_model(args.model, num_labels, use_normalised_tokens=args.use_normalised_tokens)
+            tokenizer_fold, model_fold = select_tokenizer_and_pretrained_model(repo_root, args.model, num_labels, use_normalised_tokens=args.use_normalised_tokens)
 
             x_tr_norm = [normalise_text(t, enabled=use_norm) for t in x_tr]
             x_va_norm = [normalise_text(t, enabled=use_norm) for t in x_va]
@@ -270,7 +270,7 @@ def main():
             if any(s in k for s in ["f1", "accuracy", "balanced_accuracy", "precision", "recall"])})
 
         # --- Final retrain on the entire train pool (x_tmp/y_tmp), then one clean test ---
-        tokenizer_full, model_full = select_tokenizer_and_pretrained_model(args.model, num_labels, use_normalised_tokens=args.use_normalised_tokens)
+        tokenizer_full, model_full = select_tokenizer_and_pretrained_model(repo_root, args.model, num_labels, use_normalised_tokens=args.use_normalised_tokens)
         # normalise both the full-train pool and the test set using the same flag
         x_full_norm      = [normalise_text(t, enabled=use_norm) for t in x_tmp]
         x_test_full_norm = [normalise_text(t, enabled=use_norm) for t in x_test]
