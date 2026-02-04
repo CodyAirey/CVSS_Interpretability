@@ -1,3 +1,5 @@
 .vscode
 saved_models/
 *.pyc
+
+cross_model_out/
