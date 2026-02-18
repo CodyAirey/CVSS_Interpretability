@@ -87,7 +87,7 @@ If you are reviewing the interpretability paper, this directory contains all att
 
 ---
 
-# 🚨 User Study Materials (For Reviewers)
+# User Study Materials (For Reviewers)
 
 If you are reviewing the interpretability paper and looking for the **practitioner validation study**, all materials are here:
 
